@@ -8,7 +8,7 @@ ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
 $app->get('/lottery', function (Request $request, Response $response, $args) {
-    
+
     $conn = $GLOBALS['connect'];
     $sql = 'SELECT * FROM lottery';
     $stmt = $conn->prepare($sql);
@@ -42,14 +42,14 @@ $app->get('/lottery/{id}', function (Request $request, Response $response, $args
         ->withStatus(200);
 });
 
-$app->post('/lottery', function (Request $request, Response $response, $args) {
+$app->post('/lottery/add', function (Request $request, Response $response, $args) {
     $json = $request->getBody();
     $jsonData = json_decode($json, true);
 
     $conn = $GLOBALS['connect'];
-    $sql = 'INSERT INTO lottery (ticket_number, price, period, set_number) VALUES (?, ?, ?, ?)';
+    $sql = 'INSERT INTO lottery (ticket_number, price, quantity, period, set_number) VALUES (?, ?, ?, ?, ?)';
     $stmt = $conn->prepare($sql);
-    $stmt->bind_param('sdis', $jsonData['ticket_number'], $jsonData['price'], $jsonData['period'], $jsonData['set_number']);
+    $stmt->bind_param('idiii', $jsonData['ticket_number'], $jsonData['price'], $jsonData['quantity'], $jsonData['period'], $jsonData['set_number']);
     $stmt->execute();
     $affected = $stmt->affected_rows;
     if ($affected > 0) {
@@ -57,7 +57,7 @@ $app->post('/lottery', function (Request $request, Response $response, $args) {
         $response->getBody()->write(json_encode($data));
         return $response
             ->withHeader('Content-Type', 'application/json')
-            ->withStatus(201);  
+            ->withStatus(201);
     }
 });
 
@@ -66,9 +66,9 @@ $app->put('/lottery/{id}', function (Request $request, Response $response, $args
     $jsonData = json_decode($json, true);
     $id = $args['id'];
     $conn = $GLOBALS['connect'];
-    $sql = 'UPDATE lottery SET ticket_number=?, price=?, period=?, set_number=? WHERE id = ?';
+    $sql = 'UPDATE lottery SET ticket_number=?, price=?, quantity=?, period=?, set_number=? WHERE id = ?';
     $stmt = $conn->prepare($sql);
-    $stmt->bind_param('sdisi', $jsonData['ticket_number'], $jsonData['price'], $jsonData['period'], $jsonData['set_number'], $id);
+    $stmt->bind_param('iidsii', $jsonData['ticket_number'], $jsonData['price'], $jsonData['quantity'], $jsonData['period'], $jsonData['set_number'], $id);
     $stmt->execute();
     $affected = $stmt->affected_rows;
     if ($affected > 0) {

@@ -26,12 +26,22 @@ $app->post('/login', function (Request $request, Response $response, $args) {
         $user = $result->fetch_assoc();
         $hashedPasswordFromDatabase = $user['password'];
 
-         
+
         if (password_verify($password, $hashedPasswordFromDatabase)) {
-            $data = [
-                "message" => "เข้าสู่ระบบสำเร็จ",
-                "user" => $user
-            ];
+            // Check the user's role
+            $role = $user['role'];
+
+            if ($role === 'user') {
+                // Redirect to the main page for users
+                $data = ["message" => "เข้าสู่ระบบสำเร็จ", "user" => $user, "redirect" => "main"];
+            } elseif ($role === 'admin') {
+                // Redirect to the dashboard for admin
+                $data = ["message" => "เข้าสู่ระบบสำเร็จ", "user" => $user, "redirect" => "dashboard"];
+            } else {
+                // Handle other roles as needed
+                $data = ["message" => "ไม่พบข้อมูล"];
+            }
+
             $response->getBody()->write(json_encode($data));
             return $response
                 ->withHeader('Content-Type', 'application/json')
