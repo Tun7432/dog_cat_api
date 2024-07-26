@@ -1,13 +1,15 @@
 <?php
 
-    // $servername = "myadminphp.bowlab.net";
-    // $username = "u583789277_DBWebtechG2";
-    // $password = "Enhanced66";
-    // $dbname = "u583789277_DBWebtechG2";
+    
+// $servername = "103.27.200.238";
+// $username = "smtonlin_dog-cat";
+// $password = "dog-cat1234";
+// $dbname = "smtonlin_dog-cat";
+
 $servername = "localhost";
 $username = "root";
 $password = "";
-$dbname = "lottery";
+$dbname = "pet_management";
 
 $connect = new mysqli($servername,$username,$password,$dbname);
     
