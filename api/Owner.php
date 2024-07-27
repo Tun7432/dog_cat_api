@@ -59,13 +59,12 @@ $app->post('/owners/{id}/address', function (Request $request, Response $respons
 
     $conn = $GLOBALS['connect'];
     $stmt = $conn->prepare('INSERT INTO owner_addresses
-        (owner_id, address, province, district, sub_district, house_number, village_number, community_name, alley, road, postal_code, latitude, longitude) 
+        (owner_id, province, district, sub_district, house_number, village_number, community_name, alley, road, postal_code, latitude, longitude) 
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
 
     $stmt->bind_param(
-        'isssssssssssdd',
+        'issssssssssdd',
         $owner_id,
-        $jsonData['address'],
         $jsonData['province'],
         $jsonData['district'],
         $jsonData['sub_district'],

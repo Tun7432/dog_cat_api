@@ -21,6 +21,7 @@ require __DIR__ . '/api/User.php';
 require __DIR__ . '/api/Owner.php';
 require __DIR__ . '/api/Pet.php';
 require __DIR__ . '/api/RabiesRecord.php';
+require __DIR__ . '/api/Report.php';
 require __DIR__ . '/api/StrayPet.php';
 require __DIR__ . '/api/Address.php';
 require __DIR__ . '/connection/dbconn.php';
