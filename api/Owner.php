@@ -2,6 +2,7 @@
 
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
+use Slim\Psr7\UploadedFile;
 
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
@@ -9,24 +10,41 @@ error_reporting(E_ALL);
 
 
 $app->post('/owners', function (Request $request, Response $response, $args) {
-    $json = $request->getBody();
-    $jsonData = json_decode($json, true);
+    $directory = __DIR__ . '../uploads';
+    $uploadedFiles = $request->getUploadedFiles();
+    $data = $request->getParsedBody();
+
+    // ตรวจสอบการอัปโหลดไฟล์
+    if (empty($uploadedFiles['image'])) {
+        $response->getBody()->write(json_encode(['error' => 'No image uploaded']));
+        return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+    }
+
+    $image = $uploadedFiles['image'];
+    if ($image->getError() === UPLOAD_ERR_OK) {
+        $filename = moveUploadedFile($directory, $image);
+        $data['image_path'] = $directory . '/' . $filename;
+    } else {
+        $response->getBody()->write(json_encode(['error' => 'Image upload failed']));
+        return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
+    }
 
     $conn = $GLOBALS['connect'];
     $stmt = $conn->prepare('INSERT INTO owners
-        (first_name, last_name, phone, email, rabies_vaccine_history, vaccine_date, bite_history, bite_count)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)');
+        (first_name, last_name, phone, email, rabies_vaccine_history, vaccine_date, bite_history, bite_count, image_path)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)');
 
     $stmt->bind_param(
-        'sssssssi',
-        $jsonData['first_name'],
-        $jsonData['last_name'],
-        $jsonData['phone'],
-        $jsonData['email'],
-        $jsonData['rabies_vaccine_history'],
-        $jsonData['vaccine_date'],
-        $jsonData['bite_history'],
-        $jsonData['bite_count']
+        'sssssssiss',
+        $data['first_name'],
+        $data['last_name'],
+        $data['phone'],
+        $data['email'],
+        $data['rabies_vaccine_history'],
+        $data['vaccine_date'],
+        $data['bite_history'],
+        $data['bite_count'],
+        $data['image_path']
     );
 
     if ($stmt->execute()) {
@@ -45,6 +63,80 @@ $app->post('/owners', function (Request $request, Response $response, $args) {
         return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
     }
 });
+
+function moveUploadedFile($directory, UploadedFile $uploadedFile)
+{
+    $extension = pathinfo($uploadedFile->getClientFilename(), PATHINFO_EXTENSION);
+    $basename = bin2hex(random_bytes(8));
+    $filename = sprintf('%s.%0.8s', $basename, $extension);
+
+    $uploadedFile->moveTo($directory . DIRECTORY_SEPARATOR . $filename);
+
+    return $filename;
+}
+
+
+
+
+// $app->post('/owners/{id}/upload', function (Request $request, Response $response, $args) {
+//     $owner_id = $args['id'];
+//     $directory = __DIR__ . '../uploads';
+
+//     // ตรวจสอบและสร้างโฟลเดอร์ถ้ายังไม่มี
+//     if (!is_dir($directory)) {
+//         mkdir($directory, 0777, true);
+//     }
+
+//     $uploadedFiles = $request->getUploadedFiles();
+//     $errors = [];
+
+//     if (!isset($uploadedFiles['image'])) {
+//         $errors[] = 'No image uploaded';
+//     }
+
+//     if (!empty($errors)) {
+//         $response->getBody()->write(json_encode(['errors' => $errors]));
+//         return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+//     }
+
+//     $uploadedFile = $uploadedFiles['image'];
+
+//     if ($uploadedFile->getError() === UPLOAD_ERR_OK) {
+//         $filename = moveUploadedFile($directory, $uploadedFile);
+
+//         $conn = $GLOBALS['connect'];
+//         $stmt = $conn->prepare('UPDATE owners SET image_path = ? WHERE id = ?');
+//         $stmt->bind_param('si', $filename, $owner_id);
+
+//         if ($stmt->execute()) {
+//             $responseBody = [
+//                 'message' => 'Image uploaded successfully',
+//                 'image_path' => $filename
+//             ];
+//             $response->getBody()->write(json_encode($responseBody));
+//             return $response->withHeader('Content-Type', 'application/json')->withStatus(200);
+//         } else {
+//             $response->getBody()->write(json_encode(['error' => 'Failed to update image path']));
+//             return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
+//         }
+//     } else {
+//         $response->getBody()->write(json_encode(['error' => 'Failed to upload image']));
+//         return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
+//     }
+// });
+
+// function moveUploadedFile($directory, UploadedFile $uploadedFile)
+// {
+//     $extension = pathinfo($uploadedFile->getClientFilename(), PATHINFO_EXTENSION);
+//     $basename = bin2hex(random_bytes(8)); // สร้างชื่อไฟล์แบบสุ่ม
+//     $filename = sprintf('%s.%0.8s', $basename, $extension);
+
+//     $uploadedFile->moveTo($directory . DIRECTORY_SEPARATOR . $filename);
+
+//     return $filename;
+// }
+
+
 
 $app->post('/owners/{id}/address', function (Request $request, Response $response, $args) {
     $owner_id = $args['id'];
