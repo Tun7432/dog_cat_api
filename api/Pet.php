@@ -13,9 +13,6 @@ error_reporting(E_ALL);
 $app->post('/pets', function (Request $request, Response $response, $args) {
     $data = $request->getParsedBody();
     
-
- 
-
     $conn = $GLOBALS['connect'];
     $errors = [];
 
