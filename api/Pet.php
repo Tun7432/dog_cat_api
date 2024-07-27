@@ -12,11 +12,21 @@ error_reporting(E_ALL);
 
 $app->post('/pets', function (Request $request, Response $response, $args) {
     $data = $request->getParsedBody();
-    
+    // $json = $request->getBody();
+    // $jsonData = json_decode($json, true);
+    // ตรวจสอบว่าข้อมูลเป็น array และมี field 'pets'
+    if (!isset($data['pets']) || !is_array($data['pets'])) {
+        $response->getBody()->write(json_encode(['message' => 'Invalid input']));
+        return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+    }
+
+    $pets = $data['pets']; // ข้อมูลสัตว์เลี้ยง
+
     $conn = $GLOBALS['connect'];
     $errors = [];
 
-    foreach ($data as $pet) {
+    foreach ($pets as $pet) {
+        // ตรวจสอบข้อมูลสัตว์เลี้ยง
         if (
             !isset($pet['owner_id']) || !isset($pet['image']) || !isset($pet['type']) || !isset($pet['color']) ||
             !isset($pet['name']) || !isset($pet['gender']) || !isset($pet['birth_date']) || !isset($pet['neutered']) ||
@@ -26,6 +36,7 @@ $app->post('/pets', function (Request $request, Response $response, $args) {
             continue;
         }
 
+        // เตรียมคำสั่ง SQL และผูกพารามิเตอร์
         $stmt = $conn->prepare('INSERT INTO pets 
             (owner_id, image, type, color, name, gender, birth_date, neutered, rabies_vaccine, vaccine_date, status) 
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
@@ -58,8 +69,6 @@ $app->post('/pets', function (Request $request, Response $response, $args) {
     $response->getBody()->write(json_encode(['message' => 'Pets created']));
     return $response->withHeader('Content-Type', 'application/json')->withStatus(201);
 });
-
-
 
 
 
