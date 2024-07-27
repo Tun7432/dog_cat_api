@@ -3,14 +3,12 @@
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 
-
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
 
 $app->post('/owners', function (Request $request, Response $response, $args) {
-   //$data = $request->getParsedBody();
     $json = $request->getBody();
     $jsonData = json_decode($json, true);
 
@@ -48,22 +46,18 @@ $app->post('/owners', function (Request $request, Response $response, $args) {
     }
 });
 
-
-
-
 $app->post('/owners/{id}/address', function (Request $request, Response $response, $args) {
     $owner_id = $args['id'];
-    //$data = $request->getParsedBody();
     $json = $request->getBody();
     $jsonData = json_decode($json, true);
 
     $conn = $GLOBALS['connect'];
     $stmt = $conn->prepare('INSERT INTO owner_addresses
         (owner_id, province, district, sub_district, house_number, village_number, community_name, alley, road, postal_code, latitude, longitude) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
 
     $stmt->bind_param(
-        'issssssssssdd',
+        'iiiissssssdd',
         $owner_id,
         $jsonData['province'],
         $jsonData['district'],
@@ -78,11 +72,21 @@ $app->post('/owners/{id}/address', function (Request $request, Response $respons
         $jsonData['longitude']
     );
 
-    $stmt->execute();
-
-    $response->getBody()->write(json_encode(['message' => 'Address added']));
-    return $response->withHeader('Content-Type', 'application/json')->withStatus(201);
+    if ($stmt->execute()) {
+        $responseBody = [
+            'message' => 'Address added'
+        ];
+        $response->getBody()->write(json_encode($responseBody));
+        return $response->withHeader('Content-Type', 'application/json')->withStatus(201);
+    } else {
+        $errorResponse = [
+            'error' => 'Failed to add address'
+        ];
+        $response->getBody()->write(json_encode($errorResponse));
+        return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
+    }
 });
+
 
 
 $app->put('/owners/{id}', function (Request $request, Response $response, $args) {
