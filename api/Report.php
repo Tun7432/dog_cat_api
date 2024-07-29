@@ -61,6 +61,7 @@ $app->get('/report', function (Request $request, Response $response, $args) {
 });
 
 
+
 $app->get('/pet-owners-report', function (Request $request, Response $response, $args) {
     $queryParams = $request->getQueryParams();
     $province = $queryParams['province'] ?? null;
@@ -111,5 +112,57 @@ $app->get('/pet-owners-report', function (Request $request, Response $response, 
     }
 
     $response->getBody()->write(json_encode($reportData));
+    return $response->withHeader('Content-Type', 'application/json')->withStatus(200);
+});
+
+
+$app->get('/pet-analysis-report', function (Request $request, Response $response, $args) {
+    $queryParams = $request->getQueryParams();
+    $startDate = $queryParams['start_date'] ?? null;
+    $endDate = $queryParams['end_date'] ?? null;
+    $province = $queryParams['province'] ?? null;
+    $district = $queryParams['district'] ?? null;
+    $subDistrict = $queryParams['sub_district'] ?? null;
+
+    if (!$startDate || !$endDate || !$province || !$district || !$subDistrict) {
+        $response->getBody()->write(json_encode(['message' => 'Invalid parameters']));
+        return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
+    }
+
+    $conn = $GLOBALS['connect'];
+    $stmt = $conn->prepare(
+        'SELECT
+            COUNT(p.id) AS total_pets,
+            SUM(CASE WHEN p.type = \'dog\' THEN 1 ELSE 0 END) AS total_dogs,
+            SUM(CASE WHEN p.type = \'cat\' THEN 1 ELSE 0 END) AS total_cats,
+            SUM(CASE WHEN p.type = \'dog\' AND p.owner_id IS NOT NULL THEN 1 ELSE 0 END) AS owned_dogs,
+            SUM(CASE WHEN p.type = \'dog\' AND p.owner_id IS NULL THEN 1 ELSE 0 END) AS stray_dogs,
+            SUM(CASE WHEN p.type = \'cat\' AND p.owner_id IS NOT NULL THEN 1 ELSE 0 END) AS owned_cats,
+            SUM(CASE WHEN p.type = \'cat\' AND p.owner_id IS NULL THEN 1 ELSE 0 END) AS stray_cats,
+            SUM(CASE WHEN p.type = \'dog\' AND p.neutered = 1 THEN 1 ELSE 0 END) AS neutered_dogs,
+            SUM(CASE WHEN p.type = \'dog\' AND p.neutered = 0 THEN 1 ELSE 0 END) AS unneutered_dogs,
+            SUM(CASE WHEN p.type = \'cat\' AND p.neutered = 1 THEN 1 ELSE 0 END) AS neutered_cats,
+            SUM(CASE WHEN p.type = \'cat\' AND p.neutered = 0 THEN 1 ELSE 0 END) AS unneutered_cats,
+            SUM(CASE WHEN p.type = \'dog\' AND p.rabies_vaccine = 1 THEN 1 ELSE 0 END) AS vaccinated_dogs,
+            SUM(CASE WHEN p.type = \'dog\' AND p.rabies_vaccine = 0 THEN 1 ELSE 0 END) AS unvaccinated_dogs,
+            SUM(CASE WHEN p.type = \'cat\' AND p.rabies_vaccine = 1 THEN 1 ELSE 0 END) AS vaccinated_cats,
+            SUM(CASE WHEN p.type = \'cat\' AND p.rabies_vaccine = 0 THEN 1 ELSE 0 END) AS unvaccinated_cats
+        FROM
+            pets p
+        JOIN
+            owner_addresses oa ON p.owner_id = oa.owner_id
+        WHERE
+            p.created_at BETWEEN ? AND ?
+            AND oa.sub_district = ?
+            AND oa.district = ?
+            AND oa.province = ?'
+    );
+
+    $stmt->bind_param('sssss', $startDate, $endDate, $subDistrict, $district, $province);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $data = $result->fetch_assoc();
+
+    $response->getBody()->write(json_encode($data));
     return $response->withHeader('Content-Type', 'application/json')->withStatus(200);
 });
