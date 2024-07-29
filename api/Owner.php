@@ -277,3 +277,69 @@ $app->get('/owners/{id}', function (Request $request, Response $response, $args)
 
     return $response->withHeader('Content-Type', 'application/json')->withStatus(200);
 });
+
+
+
+$app->get('/search-owners', function (Request $request, Response $response, $args) {
+    $queryParams = $request->getQueryParams();
+    $firstName = $queryParams['first_name'] ?? null;
+    $lastName = $queryParams['last_name'] ?? null;
+    $phone = $queryParams['phone'] ?? null;
+
+    $conn = $GLOBALS['connect'];
+    $sql = '
+        SELECT 
+            o.id AS owner_id, 
+            o.prefix, 
+            o.first_name, 
+            o.last_name, 
+            o.phone, 
+            o.email, 
+            oa.province, 
+            oa.district, 
+            oa.sub_district, 
+            oa.house_number, 
+            oa.village_number, 
+            oa.community_name, 
+            oa.alley, 
+            oa.road, 
+            oa.postal_code,
+            p.id AS pet_id, 
+            p.type AS pet_type, 
+            p.name AS pet_name, 
+            p.color AS pet_color, 
+            p.gender AS pet_gender, 
+            p.birth_date AS pet_birth_date, 
+            p.neutered AS pet_neutered, 
+            p.rabies_vaccine AS pet_rabies_vaccine, 
+            p.status AS pet_status
+        FROM 
+            owners o
+        LEFT JOIN 
+            owner_addresses oa ON o.id = oa.owner_id
+        LEFT JOIN 
+            pets p ON o.id = p.owner_id
+        WHERE 
+            (? IS NULL OR o.first_name LIKE ?)
+            AND (? IS NULL OR o.last_name LIKE ?)
+            AND (? IS NULL OR o.phone LIKE ?)
+    ';
+
+    $stmt = $conn->prepare($sql);
+
+    $likeFirstName = $firstName ? "%$firstName%" : null;
+    $likeLastName = $lastName ? "%$lastName%" : null;
+    $likePhone = $phone ? "%$phone%" : null;
+
+    $stmt->bind_param('ssssss', $firstName, $likeFirstName, $lastName, $likeLastName, $phone, $likePhone);
+    $stmt->execute();
+    $result = $stmt->get_result();
+    $data = [];
+
+    while ($row = $result->fetch_assoc()) {
+        $data[] = $row;
+    }
+
+    $response->getBody()->write(json_encode($data));
+    return $response->withHeader('Content-Type', 'application/json')->withStatus(200);
+});
