@@ -14,9 +14,10 @@ $app->get('/report', function (Request $request, Response $response, $args) {
     $province = $queryParams['province'] ?? null;
     $district = $queryParams['district'] ?? null;
     $subDistrict = $queryParams['sub_district'] ?? null;
+    $villageNumber = $queryParams['village_number'] ?? null;
 
     // ตรวจสอบว่า parameter ครบถ้วน
-    if (!$startDate || !$endDate || !$province || !$district || !$subDistrict) {
+    if (!$startDate || !$endDate || !$province || !$district || !$subDistrict || !$villageNumber) {
         $response->getBody()->write(json_encode(['message' => 'Invalid parameters']));
         return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
     }
@@ -31,6 +32,7 @@ $app->get('/report', function (Request $request, Response $response, $args) {
             oa.province,
             oa.district,
             oa.sub_district,
+            oa.village_number,
             COUNT(DISTINCT o.id) AS total_owners,
             SUM(o.rabies_vaccine_history) AS vaccinated_owners,
             (SUM(o.rabies_vaccine_history) / COUNT(DISTINCT o.id)) * 100 AS vaccination_rate
@@ -43,11 +45,12 @@ $app->get('/report', function (Request $request, Response $response, $args) {
             AND oa.province = ?
             AND oa.district = ?
             AND oa.sub_district = ?
+            AND oa.village_number = ?
         GROUP BY 
-            oa.province, oa.district, oa.sub_district'
+            oa.province, oa.district, oa.sub_district, oa.village_number'
     );
 
-    $stmt->bind_param('sssss', $startDate, $endDate, $province, $district, $subDistrict);
+    $stmt->bind_param('ssssss', $startDate, $endDate, $province, $district, $subDistrict, $villageNumber);
     $stmt->execute();
     $result = $stmt->get_result();
 
@@ -59,6 +62,7 @@ $app->get('/report', function (Request $request, Response $response, $args) {
     $response->getBody()->write(json_encode($reportData));
     return $response->withHeader('Content-Type', 'application/json')->withStatus(200);
 });
+
 
 
 
@@ -123,13 +127,16 @@ $app->get('/pet-analysis-report', function (Request $request, Response $response
     $province = $queryParams['province'] ?? null;
     $district = $queryParams['district'] ?? null;
     $subDistrict = $queryParams['sub_district'] ?? null;
+    $villageNumber = $queryParams['village_number'] ?? null;
 
-    if (!$startDate || !$endDate || !$province || !$district || !$subDistrict) {
+    if (!$startDate || !$endDate || !$province || !$district || !$subDistrict || !$villageNumber) {
         $response->getBody()->write(json_encode(['message' => 'Invalid parameters']));
         return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
     }
 
     $conn = $GLOBALS['connect'];
+
+
     $stmt = $conn->prepare(
         'SELECT
             COUNT(p.id) AS total_pets,
@@ -155,14 +162,29 @@ $app->get('/pet-analysis-report', function (Request $request, Response $response
             p.created_at BETWEEN ? AND ?
             AND oa.sub_district = ?
             AND oa.district = ?
-            AND oa.province = ?'
+            AND oa.province = ?
+            AND oa.village_number = ?'
     );
 
-    $stmt->bind_param('sssss', $startDate, $endDate, $subDistrict, $district, $province);
-    $stmt->execute();
+    if (!$stmt) {
+        $response->getBody()->write(json_encode(['message' => 'Database query preparation failed']));
+        return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
+    }
+
+    $stmt->bind_param('ssssss', $startDate, $endDate, $subDistrict, $district, $province, $villageNumber);
+
+    if (!$stmt->execute()) {
+        $response->getBody()->write(json_encode(['message' => 'Database query execution failed']));
+        return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
+    }
+
     $result = $stmt->get_result();
     $data = $result->fetch_assoc();
+
+    $stmt->close();
 
     $response->getBody()->write(json_encode($data));
     return $response->withHeader('Content-Type', 'application/json')->withStatus(200);
 });
+
+
