@@ -120,7 +120,7 @@ $app->get('/pet-owners-report', function (Request $request, Response $response, 
 });
 
 
-$app->get('/pet-analysis-report', function (Request $request, Response $response, $args) {
+$app->get('/pet-analysis-report', function (Request $request, Response $response) {
     $queryParams = $request->getQueryParams();
     $startDate = $queryParams['start_date'] ?? null;
     $endDate = $queryParams['end_date'] ?? null;
@@ -136,55 +136,65 @@ $app->get('/pet-analysis-report', function (Request $request, Response $response
 
     $conn = $GLOBALS['connect'];
 
-
-    $stmt = $conn->prepare(
-        'SELECT
-            COUNT(p.id) AS total_pets,
-            SUM(CASE WHEN p.type = \'dog\' THEN 1 ELSE 0 END) AS total_dogs,
-            SUM(CASE WHEN p.type = \'cat\' THEN 1 ELSE 0 END) AS total_cats,
-            SUM(CASE WHEN p.type = \'dog\' AND p.owner_id IS NOT NULL THEN 1 ELSE 0 END) AS owned_dogs,
-            SUM(CASE WHEN p.type = \'dog\' AND p.owner_id IS NULL THEN 1 ELSE 0 END) AS stray_dogs,
-            SUM(CASE WHEN p.type = \'cat\' AND p.owner_id IS NOT NULL THEN 1 ELSE 0 END) AS owned_cats,
-            SUM(CASE WHEN p.type = \'cat\' AND p.owner_id IS NULL THEN 1 ELSE 0 END) AS stray_cats,
-            SUM(CASE WHEN p.type = \'dog\' AND p.neutered = 1 THEN 1 ELSE 0 END) AS neutered_dogs,
-            SUM(CASE WHEN p.type = \'dog\' AND p.neutered = 0 THEN 1 ELSE 0 END) AS unneutered_dogs,
-            SUM(CASE WHEN p.type = \'cat\' AND p.neutered = 1 THEN 1 ELSE 0 END) AS neutered_cats,
-            SUM(CASE WHEN p.type = \'cat\' AND p.neutered = 0 THEN 1 ELSE 0 END) AS unneutered_cats,
-            SUM(CASE WHEN p.type = \'dog\' AND p.rabies_vaccine = 1 THEN 1 ELSE 0 END) AS vaccinated_dogs,
-            SUM(CASE WHEN p.type = \'dog\' AND p.rabies_vaccine = 0 THEN 1 ELSE 0 END) AS unvaccinated_dogs,
-            SUM(CASE WHEN p.type = \'cat\' AND p.rabies_vaccine = 1 THEN 1 ELSE 0 END) AS vaccinated_cats,
-            SUM(CASE WHEN p.type = \'cat\' AND p.rabies_vaccine = 0 THEN 1 ELSE 0 END) AS unvaccinated_cats
-        FROM
-            pets p
-        JOIN
-            owner_addresses oa ON p.owner_id = oa.owner_id
+    // Query for owned pets
+    $sqlPets = "
+        SELECT
+            'owned' AS pet_type, p.id AS pet_id, p.type, p.name, p.color, p.gender,
+            p.birth_date, p.neutered, p.rabies_vaccine, p.status, o.id AS owner_id,
+            o.first_name, o.last_name, o.phone, o.email,
+            oa.province, oa.district, oa.sub_district, oa.village_number
+        FROM pets p
+        INNER JOIN owners o ON p.owner_id = o.id
+        INNER JOIN owner_addresses oa ON o.id = oa.owner_id
         WHERE
+            oa.province = ? AND
+            oa.district = ? AND
+            oa.sub_district = ? AND
+            oa.village_number = ? AND
             p.created_at BETWEEN ? AND ?
-            AND oa.sub_district = ?
-            AND oa.district = ?
-            AND oa.province = ?
-            AND oa.village_number = ?'
-    );
+    ";
 
-    if (!$stmt) {
-        $response->getBody()->write(json_encode(['message' => 'Database query preparation failed']));
-        return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
-    }
+    // Query for stray pets
+    $sqlStrayPets = "
+        SELECT
+            'stray' AS pet_type, sp.id AS pet_id, sp.type, sp.name, sp.color, sp.gender,
+            sp.birth_date, sp.neutered, sp.rabies_vaccine, sp.status,
+            NULL AS owner_id, NULL AS first_name, NULL AS last_name,
+            NULL AS phone, NULL AS email,
+            spa.province, spa.district, spa.sub_district, spa.village_number
+        FROM stray_pets sp
+        INNER JOIN stray_pets_address spa ON sp.stray_pets_address_id = spa.id
+        WHERE
+            spa.province = ? AND
+            spa.district = ? AND
+            spa.sub_district = ? AND
+            spa.village_number = ? AND
+            sp.created_at BETWEEN ? AND ?
+    ";
 
-    $stmt->bind_param('ssssss', $startDate, $endDate, $subDistrict, $district, $province, $villageNumber);
+    // Execute query for pets
+    $stmtPets = $conn->prepare($sqlPets);
+    $stmtPets->bind_param('ssssss', $province, $district, $subDistrict, $villageNumber, $startDate, $endDate);
+    $stmtPets->execute();
+    $resultPets = $stmtPets->get_result()->fetch_all(MYSQLI_ASSOC);
 
-    if (!$stmt->execute()) {
-        $response->getBody()->write(json_encode(['message' => 'Database query execution failed']));
-        return $response->withHeader('Content-Type', 'application/json')->withStatus(500);
-    }
+    // Execute query for stray pets
+    $stmtStrayPets = $conn->prepare($sqlStrayPets);
+    $stmtStrayPets->bind_param('ssssss', $province, $district, $subDistrict, $villageNumber, $startDate, $endDate);
+    $stmtStrayPets->execute();
+    $resultStrayPets = $stmtStrayPets->get_result()->fetch_all(MYSQLI_ASSOC);
 
-    $result = $stmt->get_result();
-    $data = $result->fetch_assoc();
+    // Merge results
+    $result = array_merge($resultPets, $resultStrayPets);
 
-    $stmt->close();
-
-    $response->getBody()->write(json_encode($data));
+    $response->getBody()->write(json_encode($result));
     return $response->withHeader('Content-Type', 'application/json')->withStatus(200);
 });
+
+
+
+
+
+
 
 

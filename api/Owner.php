@@ -343,3 +343,4 @@ $app->get('/search-owners', function (Request $request, Response $response, $arg
     $response->getBody()->write(json_encode($data));
     return $response->withHeader('Content-Type', 'application/json')->withStatus(200);
 });
+
