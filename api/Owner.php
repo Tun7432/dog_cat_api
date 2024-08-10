@@ -344,3 +344,119 @@ $app->get('/search-owners', function (Request $request, Response $response, $arg
     return $response->withHeader('Content-Type', 'application/json')->withStatus(200);
 });
 
+
+$app->get('/stray_pets/search', function ($request, $response, $args) {
+    // Retrieve query parameters
+    $queryParams = $request->getQueryParams();
+    $province = $queryParams['province'] ?? null;
+    $amphure = $queryParams['amphure'] ?? null;
+    $tambon = $queryParams['tambon'] ?? null;
+    $village_number = $queryParams['village_number'] ?? null;
+    $community_name = $queryParams['community_name'] ?? null;
+    $important_places = $queryParams['important_places'] ?? null;
+    $house_number = $queryParams['house_number'] ?? null;
+    $alley = $queryParams['alley'] ?? null;
+    $road = $queryParams['road'] ?? null;
+    $postal_code = $queryParams['postal_code'] ?? null;
+    $informant = $queryParams['informant'] ?? null;
+
+    // Get the container from the request
+    $container = $request->getAttribute('container');
+    if (!$container) {
+        $response->getBody()->write(json_encode(['error' => 'Container not found']));
+        return $response->withStatus(500)
+            ->withHeader('Content-Type', 'application/json');
+    }
+
+
+    $db = $container->get('db');
+
+
+    $sql = "SELECT * FROM stray_pets sp
+            JOIN stray_pets_address spa ON sp.stray_pets_address_id = spa.id
+            WHERE 1=1";
+
+    $types = '';
+    $values = [];
+
+    if ($province) {
+        $sql .= " AND spa.province = ?";
+        $types .= 's';
+        $values[] = $province;
+    }
+    if ($amphure) {
+        $sql .= " AND spa.district = ?";
+        $types .= 's';
+        $values[] = $amphure;
+    }
+    if ($tambon) {
+        $sql .= " AND spa.sub_district = ?";
+        $types .= 's';
+        $values[] = $tambon;
+    }
+    if ($village_number) {
+        $sql .= " AND spa.village_number = ?";
+        $types .= 's';
+        $values[] = $village_number;
+    }
+    if ($community_name) {
+        $sql .= " AND spa.community_name = ?";
+        $types .= 's';
+        $values[] = $community_name;
+    }
+    if ($important_places) {
+        $sql .= " AND spa.important_places = ?";
+        $types .= 's';
+        $values[] = $important_places;
+    }
+    if ($house_number) {
+        $sql .= " AND spa.house_number = ?";
+        $types .= 's';
+        $values[] = $house_number;
+    }
+    if ($alley) {
+        $sql .= " AND spa.alley = ?";
+        $types .= 's';
+        $values[] = $alley;
+    }
+    if ($road) {
+        $sql .= " AND spa.road = ?";
+        $types .= 's';
+        $values[] = $road;
+    }
+    if ($postal_code) {
+        $sql .= " AND spa.postal_code = ?";
+        $types .= 's';
+        $values[] = $postal_code;
+    }
+    if ($informant) {
+        $sql .= " AND spa.informant = ?";
+        $types .= 's';
+        $values[] = $informant;
+    }
+
+
+    $stmt = $db->prepare($sql);
+
+
+    if (!empty($types)) {
+        $stmt->bind_param($types, ...$values);
+    }
+
+
+    $stmt->execute();
+    $result = $stmt->get_result();
+
+
+    $data = $result->fetch_all(MYSQLI_ASSOC);
+
+
+    $response->getBody()->write(json_encode($data));
+    return $response->withHeader('Content-Type', 'application/json');
+});
+
+
+
+
+
+
