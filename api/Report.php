@@ -127,9 +127,9 @@ $app->get('/pet-analysis-report', function (Request $request, Response $response
     $province = $queryParams['province'] ?? null;
     $district = $queryParams['district'] ?? null;
     $subDistrict = $queryParams['sub_district'] ?? null;
-    $villageNumber = $queryParams['village_number'] ?? null;
+    
 
-    if (!$startDate || !$endDate || !$province || !$district || !$subDistrict || !$villageNumber) {
+    if (!$startDate || !$endDate || !$province || !$district || !$subDistrict) {
         $response->getBody()->write(json_encode(['message' => 'Invalid parameters']));
         return $response->withHeader('Content-Type', 'application/json')->withStatus(400);
     }
@@ -150,7 +150,7 @@ $app->get('/pet-analysis-report', function (Request $request, Response $response
             oa.province = ? AND
             oa.district = ? AND
             oa.sub_district = ? AND
-            oa.village_number = ? AND
+            
             p.created_at BETWEEN ? AND ?
     ";
 
@@ -168,19 +168,19 @@ $app->get('/pet-analysis-report', function (Request $request, Response $response
             spa.province = ? AND
             spa.district = ? AND
             spa.sub_district = ? AND
-            spa.village_number = ? AND
+            
             sp.created_at BETWEEN ? AND ?
     ";
 
     // Execute query for pets
     $stmtPets = $conn->prepare($sqlPets);
-    $stmtPets->bind_param('ssssss', $province, $district, $subDistrict, $villageNumber, $startDate, $endDate);
+    $stmtPets->bind_param('sssss', $province, $district, $subDistrict, $startDate, $endDate);
     $stmtPets->execute();
     $resultPets = $stmtPets->get_result()->fetch_all(MYSQLI_ASSOC);
 
     // Execute query for stray pets
     $stmtStrayPets = $conn->prepare($sqlStrayPets);
-    $stmtStrayPets->bind_param('ssssss', $province, $district, $subDistrict, $villageNumber, $startDate, $endDate);
+    $stmtStrayPets->bind_param('sssss', $province, $district, $subDistrict, $startDate, $endDate);
     $stmtStrayPets->execute();
     $resultStrayPets = $stmtStrayPets->get_result()->fetch_all(MYSQLI_ASSOC);
 
@@ -190,6 +190,93 @@ $app->get('/pet-analysis-report', function (Request $request, Response $response
     $response->getBody()->write(json_encode($result));
     return $response->withHeader('Content-Type', 'application/json')->withStatus(200);
 });
+
+//วิเคราะห์ข้อมูลโรคพิษสุนัขบ้า
+$app->get('/rabies-analysis', function ($request, $response, $args) {
+    $queryParams = $request->getQueryParams();
+    $startDate = $queryParams['start_date'] ?? null;
+    $endDate = $queryParams['end_date'] ?? null;
+    $provinceId = $queryParams['province'] ?? null;
+    $amphureId = $queryParams['amphure'] ?? null;
+    $tambonId = $queryParams['tambon'] ?? null;
+    $villageNumber = $queryParams['village_number'] ?? null;
+
+    $conn = $GLOBALS['connect'];
+
+    // First SQL query to get the total number of rabies cases
+    $sqlCases = "SELECT 
+                    COUNT(DISTINCT r.id) AS total_cases
+                 FROM rabies_records r
+                 JOIN pets p ON r.pet_id = p.id
+                 JOIN owners o ON p.owner_id = o.id
+                 JOIN owner_addresses oa ON oa.owner_id = o.id
+                 WHERE r.diagnosis_date BETWEEN ? AND ?
+                 AND oa.province = ?
+                 AND oa.district = ?
+                 AND oa.sub_district = ?
+                 AND oa.village_number = ?";
+
+    $stmtCases = $conn->prepare($sqlCases);
+    $stmtCases->bind_param('ssssss', $startDate, $endDate, $provinceId, $amphureId, $tambonId, $villageNumber);
+    $stmtCases->execute();
+
+    $resultCases = $stmtCases->get_result();
+    $dataCases = $resultCases->fetch_assoc();
+
+    // Second SQL query to get the total number of pets
+    $sqlPets = "SELECT 
+                    COUNT(DISTINCT p.id) AS total_pets
+                FROM pets p
+                JOIN owners o ON p.owner_id = o.id
+                JOIN owner_addresses oa ON o.id = oa.owner_id
+                WHERE oa.province = ?
+                AND oa.district = ?
+                AND oa.sub_district = ?
+                AND oa.village_number = ?";
+
+    $stmtPets = $conn->prepare($sqlPets);
+    $stmtPets->bind_param('ssss', $provinceId, $amphureId, $tambonId, $villageNumber);
+    $stmtPets->execute();
+
+    $resultPets = $stmtPets->get_result();
+    $dataPets = $resultPets->fetch_assoc();
+
+    // Calculate incidence rate based on total cases and total pets
+    $totalCases = $dataCases['total_cases'] ?? 0;
+    $totalPets = $dataPets['total_pets'] ?? 0;
+    $incidenceRate = ($totalPets > 0) ? ($totalCases / $totalPets) * 100 : 0.00;
+
+    // Manually structure data
+    $structuredData = [
+        'startDate' => $startDate,
+        'endDate' => $endDate,
+        'province' => $provinceId,
+        'district' => $amphureId,
+        'subDistrict' => $tambonId,
+        'villageNumber' => $villageNumber,
+        'totalPets' => $totalPets,
+        'totalCases' => $totalCases,
+        'incidenceRate' => $incidenceRate
+    ];
+
+    // Return response with JSON data
+    $json = json_encode($structuredData, JSON_UNESCAPED_UNICODE);
+    $response->getBody()->write($json);
+    return $response->withHeader('Content-Type', 'application/json');
+});
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
